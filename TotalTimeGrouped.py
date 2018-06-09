@@ -59,6 +59,7 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                 #print(str(annotation[1]) +"-"+ str(annotation[0]))
         writingFile.write("TotalOverlap,Total\n")
         
+        overlap_list=[]
         keylist = tier_dictionary.keys()
         keylist.sort()
         for key in keylist:
@@ -71,7 +72,6 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
             keylist2.sort()
             for key2 in keylist2:
                 intersection_dict[key2]=0
-                
                 for value in tier_dictionary[key]:
                     
                     value_original_begin=int(value.split('-')[0])
@@ -110,11 +110,18 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                                 intersection_dict[key2]+=value_original_end-value_original_begin
                                 
                 if key2 != key:  
-                    writingFile.write(str(intersection_dict[key2])+",") 
-                    total_intersection+= intersection_dict[key2]
-                    print(key2+"-"+str(intersection_dict[key2])+",",end='')
+                    #only add the overlapping time once.
+                    if (key2+"-"+key not in overlap_list) and (key+"-"+key2 not in overlap_list):
+                        overlap_list.append(key2+"-"+key)
+                        writingFile.write(str(intersection_dict[key2])+",") 
+                        total_intersection+= intersection_dict[key2]
+                        print(key2+"-"+str(intersection_dict[key2])+",",end='')
+                    else:
+                        writingFile.write("0,")
+
                 else:
-                    writingFile.write("0,") 
+                    writingFile.write("0,")
+            total_time -=total_intersection
             writingFile.write(str(total_intersection)+","+str(total_time)+"\n")
             grand_total+=total_time
             print("total " + str(total_time))

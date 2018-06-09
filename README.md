@@ -18,10 +18,10 @@ Here `input_dir` is the directory that contains the target EAF files and `output
 ```
 FileName | TierName | CHI | FA1 | UC1 | TotalOverlap | Total |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-File1 | CHI | 0 | 0 | 3190 | 3190 | 29276 |
-File1 | FA1 | 0 | 0 | 1246 | 1246 | 10941 |
-File1 | UC1 | 3190 | 1246 | 0 | 4436 | 83303 |
- |  |  |  |  | |  Grand Total | 123520  |
+File1 | CHI | 0 | 0 | 3190 | 3190 | 26086 |
+File1 | FA1 | 0 | 0 | 1246 | 1246 | 9695 |
+File1 | UC1 | 3190 | 0 | 0 | 0 | 83303 |
+ |  |  |  |  | |  Grand Total | 119084  |
 ```
 ```
 
