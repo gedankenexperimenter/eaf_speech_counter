@@ -27,4 +27,6 @@ File1 | UC1 | 3190 | 0 | 0 | 0 | 83303 |
 
 Here `TierName` represents the main tiers  which are being considered from the `File1.eaf` file.  The other columns represent the other tiers along with their Total Overlap in milliseconds. 
 
+9/24/20: The script 'TotalTimeGrouped1.py' is the same as the original counter however it includes a section to tabulate the ADS, CDS, and Both speech tags in milliseconds.
+
 
