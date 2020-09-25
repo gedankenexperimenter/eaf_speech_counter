@@ -15,6 +15,12 @@ warnings.filterwarnings("ignore")
 # tier_names = ['FA1', 'FA2','CHI']#code_num,on_off, context, code
 ignore_tier_names=['code_num','on_off', 'context', 'code']
 
+# Tiers to exclude from CDS, ADS, and BOTH totals:
+xds_exluded_tiers = ['EE1', 'CHI']
+
+# Tiers to report separate from other tiers:
+segregated_tiers = ['EE1']
+
 #if the output file exists, delete it!
 if os.path.isfile(sys.argv[2]):
     os.remove(sys.argv[2])
@@ -79,6 +85,14 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
             keylist2 = tier_dictionary.keys()
             keylist2.sort()
             for key2 in keylist2:
+                if key2 in segregated_tiers:
+                    if key2 == key:
+                        for value in tier_dictionary[key]:
+                            begin = int(value.split('-')[0])
+                            end   = int(value.split('-')[1])
+                            total_time += end - begin
+                    writingFile.write("0,")
+                    continue
                 intersection_dict[key2]=0
                 for value in tier_dictionary[key]:
                     
@@ -93,9 +107,9 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                             value_target_end = int(value2.split('-')[1])
                             value_target_begin = int(value2.split('-')[0])
                             
-                            if value_target_begin<value_original_end and value_target_begin > value_original_begin:
+                            if value_target_begin<value_original_end and value_target_begin >= value_original_begin:
                                 
-                                if value_target_end < value_original_end :
+                                if value_target_end <= value_original_end :
                                     
                                     intersection_dict[key2]+=value_target_end-value_target_begin
                                     
@@ -104,16 +118,16 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                                     intersection_dict[key2]+=value_original_end - value_target_begin
                                     
                             #target's end is encompassed by the original's begin and end
-                            elif value_target_end>value_original_begin and value_target_end < value_original_end :
+                            elif value_target_end>value_original_begin and value_target_end <= value_original_end :
                                 #which one is larger? target's begin or original's
                                 #reverse logic as larger time needs to get subtracted
-                                if value_target_begin < value_original_begin :
+                                if value_target_begin <= value_original_begin :
                                     intersection_dict[key2]=intersection_dict[key2]+value_target_end-value_original_begin
                                     
                                 else:
                                     intersection_dict[key2]+=value_target_end-value_target_begin
                                 
-                            if value_original_begin>value_target_begin and value_original_end<value_target_end:
+                            if value_original_begin >= value_target_begin and value_original_end <= value_target_end:
                                 
                                 intersection_dict[key2]+=value_original_end-value_original_begin
                                 
@@ -152,15 +166,18 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                 cds = 0
                 both=0
             writingFile.write(str(ads) + "," + str(cds)+","+str(both)+",")
-            ads_total+=ads
-            cds_total+=cds
-            both_total+=both
+
+            if key not in xds_exluded_tiers and key not in segregated_tiers:
+                ads_total+=ads
+                cds_total+=cds
+                both_total+=both
             
             
             total_time -=total_intersection
-            total_intersection_accross+=total_intersection
+            if key not in segregated_tiers:
+                total_intersection_accross += total_intersection
+                grand_total += total_time
             writingFile.write(str(total_intersection)+","+str(total_time)+"\n")
-            grand_total+=total_time
             print("total " + str(total_time))
         writingFile.write(",")    
         for tier_name in (tier_names_targets):
