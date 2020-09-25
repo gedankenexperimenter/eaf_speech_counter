@@ -96,9 +96,9 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                             value_target_end = int(value2.split('-')[1])
                             value_target_begin = int(value2.split('-')[0])
                             
-                            if value_target_begin<value_original_end and value_target_begin > value_original_begin:
+                            if value_target_begin<value_original_end and value_target_begin >= value_original_begin:
                                 
-                                if value_target_end < value_original_end :
+                                if value_target_end <= value_original_end :
                                     
                                     intersection_dict[key2]+=value_target_end-value_target_begin
                                     
@@ -107,16 +107,16 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                                     intersection_dict[key2]+=value_original_end - value_target_begin
                                     
                             #target's end is encompassed by the original's begin and end
-                            elif value_target_end>value_original_begin and value_target_end < value_original_end :
+                            elif value_target_end>value_original_begin and value_target_end <= value_original_end :
                                 #which one is larger? target's begin or original's
                                 #reverse logic as larger time needs to get subtracted
-                                if value_target_begin < value_original_begin :
+                                if value_target_begin <= value_original_begin :
                                     intersection_dict[key2]=intersection_dict[key2]+value_target_end-value_original_begin
                                     
                                 else:
                                     intersection_dict[key2]+=value_target_end-value_target_begin
                                 
-                            if value_original_begin>value_target_begin and value_original_end<value_target_end:
+                            if value_original_begin >= value_target_begin and value_original_end <= value_target_end:
                                 
                                 intersection_dict[key2]+=value_original_end-value_original_begin
                                 
