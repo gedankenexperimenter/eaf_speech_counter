@@ -82,14 +82,16 @@ like this:
 |-------------|----------------------|--------|---------|------|
 | 4544909     | 4047123              | 957014 | 1848422 | 5926 |
 
-The `Grand Total` value comprises the union of the annotated segments
-for all tiers (except `EE1`), not the sum of the total annotated time
-for each tier. In other words, when two segments, one lasting 7s and
-the other lasting 8s overlap by 2s, they collectively contribute 13s
-to the grand total annotated time, not 15s.
+The `Grand Total` value in this table is the sum of the individual
+total times (not the adjusted totals in the `Grand Total` fields in
+the tables for each file). This sums the durations of all annotated
+segments except those in the `EE1` tiers of all the files processed.
 
-The `Grand Adjusted Total` value is equal to the `Grand Total` minus
-the total amount of overlap time for all tiers (except `EE1`).
+The `Grand Adjusted Total` value comprises the union of the annotated
+segments for all tiers (except `EE1`), not the sum of the total
+annotated time for each tier. In other words, when two segments, one
+lasting 7s and the other lasting 8s overlap by 2s, they collectively
+contribute 13s to the grand total annotated time, not 15s.
 
 The other grand totals (`ADS`, `CDS`, and `BOTH`) are not adjusted for
 overlap, so if two `ADS` segments overlap, the overlap will not be
