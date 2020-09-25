@@ -15,6 +15,9 @@ warnings.filterwarnings("ignore")
 # tier_names = ['FA1', 'FA2','CHI']#code_num,on_off, context, code
 ignore_tier_names=['code_num','on_off', 'context', 'code']
 
+# Tiers to exclude from CDS, ADS, and BOTH totals:
+xds_exluded_tiers = ['EE1', 'CHI']
+
 #if the output file exists, delete it!
 if os.path.isfile(sys.argv[2]):
     os.remove(sys.argv[2])
@@ -152,9 +155,11 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
                 cds = 0
                 both=0
             writingFile.write(str(ads) + "," + str(cds)+","+str(both)+",")
-            ads_total+=ads
-            cds_total+=cds
-            both_total+=both
+
+            if key not in xds_exluded_tiers:
+                ads_total+=ads
+                cds_total+=cds
+                both_total+=both
             
             
             total_time -=total_intersection
