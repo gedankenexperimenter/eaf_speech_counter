@@ -11,6 +11,9 @@ import os
 # removing warnings
 warnings.filterwarnings("ignore")
 
+print("WARNING: THIS VERSION OF TotalTimeGrouped.py HAS BEEN DEPRECATED.")
+print("PLEASE USE TotalTimeGrouped1.py INSTEAD.")
+
 # if we fix tier names
 # tier_names = ['FA1', 'FA2','CHI']#code_num,on_off, context, code
 ignore_tier_names=['code_num','on_off', 'context', 'code']
