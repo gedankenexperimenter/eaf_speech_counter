@@ -61,13 +61,6 @@ for file_path in glob.glob('{}/*.eaf'.format(sys.argv[1])):
 
     #sort the tier names 
     tier_names_targets.sort()
-    for tier in tier_names_targets:
-        tier_total_time = 0
-        for segment in eafob.get_annotation_data_for_tier(tier):
-            start = segment[0]
-            end   = segment[1]
-            tier_total_time += end - start
-        print(tier + ": " + str(tier_total_time))
     # sys.argv[2] has the name of the output file 
     # all writes are appended to the file
     with open(sys.argv[2], "a") as writingFile:
