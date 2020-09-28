@@ -267,7 +267,8 @@ for eaf_file in args.eaf_files:
         segments = get_segments(eaf, xds_tiers)
 
         # Convert segments to events list, setting the event labels to
-        # the base tier name with the annotation code appended
+        # the base tier name with the annotation code appended (for
+        # example: `xds@FA1` with a `C` code becomes `FA1:C`)
         events = get_events(
             segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
 
