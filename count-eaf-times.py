@@ -206,26 +206,45 @@ grand_totals = OutputRecord('Grand Totals', '')
 
 # ------------------------------------------------------------------------------
 for eaf_file in args.eaf_files:
-    print(eaf_file)
+    print('Processing {}'.format(eaf_file))
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
+
     warnings.filterwarnings('ignore')
     # pympi issues a warning "Parsing unknown version of ELAN spec..."
     eaf = pympi.Elan.Eaf(eaf_file)
     warnings.filterwarnings('default')
-    tiers = filter(lambda tier: tier not in ignored_tiers,
+
+    # Filter out subtiers (`@` is the separator), and ignored tiers
+    tiers = filter(lambda t: '@' not in t and t not in ignored_tiers,
                    eaf.get_tier_names())
-    tiers = filter(lambda tier: '@' not in tier, tiers)
+
+    # Extract annotated segments from EAF
     segments = get_segments(eaf, tiers)
+
+    # Convert segments (with start & end times) to events (with either
+    # a start or end timestamp, but not both)
     events = get_events(segments)
+
+    # Calculate sums and overlap for each combination of tiers
     (union_sum, section_sums, sections) = process_events(events)
+
+    # Get list of tier combinations (e.g. `CHI+FA2`)
     labels = sorted(section_sums.keys())
-    labels.remove('')
+    labels.remove('') # I'm not sure why this shows up
+
+    # Create dictionary for storing output records, and add the record
+    # for storing the totals for the whole EAF
     output_records = dict()
     output_records['totals'] = OutputRecord(file_id, 'Totals')
+
+    # Iterate through the tier combinations found above, and add the
+    # total time that combination was the only one active
     for label in labels:
         output_records[label] = OutputRecord(file_id, label)
         output_records[label].data['exclusive'] += section_sums[label]
         output_records['totals'].data['exclusive'] += section_sums[label]
+
+    # For top-level tiers only, report a value in the `total` field
     for tier in tiers:
         for label in labels:
             if tier in label:
@@ -233,35 +252,56 @@ for eaf_file in args.eaf_files:
                 output_records['totals'].data['total'] += section_sums[label]
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # If we're reporting ADS & CDS data:
     if args.xds:
+        # Get the list of tiers, including sub-tiers, but excluding
+        # the ignored ones
         tiers = filter(lambda t: t not in ignored_tiers, eaf.get_tier_names())
+        # Narrow that list to only the tiers with ADS & CDS annotations
         xds_tiers = filter(lambda t: 'xds@' in t, tiers)
+
+        # Extract annotated segment data for the XDS tiers
         segments = get_segments(eaf, xds_tiers)
+
+        # Convert segments to events list, setting the event labels to
+        # the base tier name with the annotation code appended
         events = get_events(
             segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
 
+        # Create filtered lists corresponding to ADS, CDS, and BOTH annotations
         cds_events = filter(lambda x: ':C' in x.label or ':T' in x.label, events)
         ads_events = filter(lambda x: ':A' in x.label, events)
         both_events = filter(lambda x: ':B' in x.label, events)
 
+        # Process the categories, adding the extracted data to the
+        # corresponding output records
         process_category('cds', cds_events, labels, output_records)
         process_category('ads', ads_events, labels, output_records)
         process_category('both', both_events, labels, output_records)
 
+    # Get the list of labels for all output records
     labels = sorted(output_records.keys())
+    labels.remove('totals')
+
+    # Report on top-level tiers on their own first
     for label in filter(lambda x: x in tiers, labels):
         output.writerow(output_records[label].fmt())
 
+    # If it has been requested, report overlap details for each
+    # combination of tiers in the EAF file
     if args.overlap:
         for label in filter(lambda x: x not in tiers, labels):
             output.writerow(output_records[label].fmt())
 
+    # Write the totals for the current EAF file
+    output.writerow(output_records['totals'].fmt())
+
+    # Update the Grand Totals data for the set of EAF files being processed
     for category in output_records['totals'].data.keys():
         grand_totals.data[category] += output_records['totals'].data[category]
 
-    output.writerow(output_records['totals'].fmt())
-
 # ------------------------------------------------------------------------------
+# Finally, write the Grand Totals row
 output.writerow(grand_totals.fmt())
 args.output.close()
 
