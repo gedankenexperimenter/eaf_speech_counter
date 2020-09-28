@@ -114,11 +114,6 @@ def process_events(events, labels = []):
     return union_sum, section_sums, sections
 
 
-def create_xds_table(tiers):
-    xds_tiers = filter(lambda tier: 'xds@' in tier, tiers)
-    return
-
-
 parser = argparse.ArgumentParser(description = """
 Analyze and report the time segments annotated in EAF files.
 """)
