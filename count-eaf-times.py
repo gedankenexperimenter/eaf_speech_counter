@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 from __future__ import print_function
 
 import argparse
@@ -40,6 +40,28 @@ class AnnotatedSegment:
             return first_end - last_start
         else:
             return 0
+
+class OutputRecord:
+    def __init__(self, file_id, label):
+        self.file_id = file_id
+        self.label = label
+        self.data = defaultdict(int)
+
+    def format(self, sep):
+        total = ''
+        if self.data['total'] != 0:
+            total = str(self.data['total'])
+        return sep.join([self.file_id,
+                         self.label,
+                         str(self.data['exclusive']),
+                         str(self.data['cds']),
+                         str(self.data['ads']),
+                         str(self.data['both']),
+                         total])
+
+    @staticmethod
+    def header(sep):
+        return sep.join(['File', 'Tier(s)', 'Exclusive', 'CDS', 'ADS', 'BOTH', 'Total'])
 
 
 def get_records(eaf, tiers):
@@ -113,6 +135,15 @@ def process_events(events, labels = []):
 
     return union_sum, section_sums, sections
 
+def process_category(category, events, output_records):
+    for event in events:
+        event.label = event.label.split(':')[0]
+    (union_sum, section_sums, sections) = process_events(events)
+    for label in labels:
+        output_records[label].data[category] += section_sums[label]
+        output_records['totals'].data[category] += section_sums[label]
+    return
+
 
 parser = argparse.ArgumentParser(description = """
 Analyze and report the time segments annotated in EAF files.
@@ -131,6 +162,9 @@ parser.add_argument('eaf_files', metavar='EAF_FILE', nargs='+',
                     help='the name(s) of the EAF file(s) to process')
 args = parser.parse_args()
 
+args.totals.write(OutputRecord.header(args.sep) + '\n')
+
+grand_totals = OutputRecord('Grand Totals', '')
 
 for eaf_file in args.eaf_files:
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
@@ -146,65 +180,46 @@ for eaf_file in args.eaf_files:
     (union_sum, section_sums, sections) = process_events(events)
     labels = sorted(section_sums.keys())
     labels.remove('')
+    output_records = dict()
+    output_records['totals'] = OutputRecord(file_id, 'Totals')
     for label in labels:
-        args.totals.write(
-            args.sep.join([file_id, label, str(section_sums[label])]) + '\n')
-    args.totals.write(args.sep.join([file_id, 'total', '', str(union_sum)]) + '\n')
+        output_records[label] = OutputRecord(file_id, label)
+        output_records[label].data['exclusive'] += section_sums[label]
+        output_records['totals'].data['exclusive'] += section_sums[label]
     for tier in tiers:
-        tier_sum = 0
         for label in labels:
             if tier in label:
-                tier_sum += section_sums[label]
-        args.totals.write(args.sep.join([file_id, tier, '', str(tier_sum)]) + '\n')
-    continue
+                output_records[tier].data['total'] += section_sums[label]
+                output_records['totals'].data['total'] += section_sums[label]
 
-if args.xds:
-    ads_total = 0
-    cds_total = 0
-    both_total = 0
-    tiers = filter(lambda tier: tier not in args.ignore,
-                   eaf.get_tier_names())
-    xds_tiers = filter(lambda tier: 'xds@' in tier, tiers)
-    segments = get_records(eaf, xds_tiers)
-    events = segments_to_events(
-        segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
-    ads_events = filter(lambda x: ':A' in x.label, events)
-    for event in ads_events:
-        event.label = event.label.split(':')[0]
-    (union_sum, section_sums, sections) = process_events(ads_events)
-    ads_labels = sorted(section_sums.keys())
+    if args.xds:
+        ads_total = 0
+        cds_total = 0
+        both_total = 0
+        tiers = filter(lambda tier: tier not in args.ignore,
+                       eaf.get_tier_names())
+        xds_tiers = filter(lambda tier: 'xds@' in tier, tiers)
+        segments = get_records(eaf, xds_tiers)
+        events = segments_to_events(
+            segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
+
+        cds_events = filter(lambda x: ':C' in x.label or ':T' in x.label, events)
+        ads_events = filter(lambda x: ':A' in x.label, events)
+        both_events = filter(lambda x: ':B' in x.label, events)
+
+        process_category('cds', cds_events, output_records)
+        process_category('ads', ads_events, output_records)
+        process_category('both', both_events, output_records)
+
+    labels = output_records.keys()
+    labels.sort()
     for label in labels:
-        if section_sums[label] == 0:
-            continue
-        args.totals.write(
-            args.sep.join([file_id, label, 'ADS', str(section_sums[label])])
-            + '\n'
-        )
-    (union_sum, section_sums, sections) = process_events(events)
-    labels = sorted(section_sums.keys())
-    for label in labels:
-        args.totals.write(
-            args.sep.join([file_id, label, str(section_sums[label])]) + '\n')
-        codes = []
-        for tier_code in label.split('+'):
-            code = tier_code.split(':')[-1]
-            if code in codes:
-                continue
-            if code == 'A':
-                codes.append('A')
-                ads_total += section_sums[label]
-            elif code == 'B':
-                codes.append('B')
-                both_total += section_sums[label]
-            elif code == 'C' or code == 'T':
-                codes.append('C')
-                codes.append('T')
-                cds_total += section_sums[label]
-    args.totals.write(args.sep.join([file_id, 'ADS', '', str(ads_total)]) + '\n')
-    args.totals.write(args.sep.join([file_id, 'CDS', '', str(cds_total)]) + '\n')
-    args.totals.write(args.sep.join([file_id, 'BOTH', '', str(both_total)]) + '\n')
+        args.totals.write(output_records[label].format(args.sep) + '\n')
 
+    for category in output_records['totals'].data.keys():
+        grand_totals.data[category] += output_records['totals'].data[category]
 
+args.totals.write(grand_totals.format(args.sep) + '\n')
 args.totals.close()
 
 exit
