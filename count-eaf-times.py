@@ -10,7 +10,7 @@ import warnings
 
 from collections import defaultdict
 
-import pympi  # Import for EAF file read
+import pympi  # Import for EAF file parsing
 
 # ==============================================================================
 # Class definitions
@@ -27,7 +27,7 @@ class Event:
             self.change = -1
 
 # ------------------------------------------------------------------------------
-class AnnotatedSegment:
+class Segment:
     """Represents an annotated segment from an EAF file"""
     def __init__(self, tier, start_time, end_time, value):
         self.tier       = tier
@@ -56,17 +56,19 @@ class OutputRecord:
         values.extend(data_values)
         return values
 
-
 # ==============================================================================
-
+# Helper functions
 # ------------------------------------------------------------------------------
 def get_segments(eaf, tiers):
+    """
+    Extract a list of annotated segments for a set of tiers from an
+    EAF file object.
+    """
     segments = []
     for tier in tiers:
         for record in eaf.get_annotation_data_for_tier(tier):
             (start_time, end_time, value) = record[:3]
-            segments.append(AnnotatedSegment(tier, start_time,
-                                             end_time, value))
+            segments.append(Segment(tier, start_time, end_time, value))
     return segments
 
 # ------------------------------------------------------------------------------
