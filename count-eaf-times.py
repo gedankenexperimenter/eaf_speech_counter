@@ -35,17 +35,6 @@ class AnnotatedSegment:
         self.end_time   = int(end_time)
         self.value      = value
 
-    def duration(self):
-        return self.end_time - self.start_time
-
-    def overlap(self, other):
-        first_end  = min(self.end_time, other.end_time)
-        last_start = max(self.start_time, other.start_time)
-        if first_end > last_start:
-            return first_end - last_start
-        else:
-            return 0
-
 # ------------------------------------------------------------------------------
 class OutputRecord:
     """Represents a row of the data table to be written to the output file"""
@@ -60,10 +49,10 @@ class OutputRecord:
 
     def fmt(self):
         values = [self.file_id, self.label]
-        def str_blank_zero(entry):
+        def _blank_zero(entry):
             value = self.data[entry]
             return '' if value == 0 else value
-        data_values = map(str_blank_zero, self.data_labels)
+        data_values = map(_blank_zero, self.data_labels)
         values.extend(data_values)
         return values
 
@@ -172,6 +161,8 @@ parser.add_argument('--sep', metavar='CSV_SEPARATOR', default='\t',
 parser.add_argument('--ignore', metavar='TIER', nargs='*',
                     default=[],
                     help='tiers to ignore')
+parser.add_argument('--overlap', action='store_true',
+                    help='include overlap details in output')
 parser.add_argument('eaf_files', metavar='EAF_FILE', nargs='+',
                     help='the name(s) of the EAF file(s) to process')
 args = parser.parse_args()
@@ -236,11 +227,14 @@ for eaf_file in args.eaf_files:
     for label in filter(lambda x: x in tiers, labels):
         output.writerow(output_records[label].fmt())
 
-    for label in filter(lambda x: x not in tiers, labels):
-        output.writerow(output_records[label].fmt())
+    if args.overlap:
+        for label in filter(lambda x: x not in tiers, labels):
+            output.writerow(output_records[label].fmt())
 
     for category in output_records['totals'].data.keys():
         grand_totals.data[category] += output_records['totals'].data[category]
+
+    output.writerow(output_records['totals'].fmt())
 
 # ------------------------------------------------------------------------------
 output.writerow(grand_totals.fmt())
