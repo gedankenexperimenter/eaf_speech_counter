@@ -173,6 +173,18 @@ if args.xds:
     segments = get_records(eaf, xds_tiers)
     events = segments_to_events(
         segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
+    ads_events = filter(lambda x: ':A' in x.label, events)
+    for event in ads_events:
+        event.label = event.label.split(':')[0]
+    (union_sum, section_sums, sections) = process_events(ads_events)
+    ads_labels = sorted(section_sums.keys())
+    for label in labels:
+        if section_sums[label] == 0:
+            continue
+        args.totals.write(
+            args.sep.join([file_id, label, 'ADS', str(section_sums[label])])
+            + '\n'
+        )
     (union_sum, section_sums, sections) = process_events(events)
     labels = sorted(section_sums.keys())
     for label in labels:
