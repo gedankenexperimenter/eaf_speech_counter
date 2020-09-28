@@ -93,6 +93,7 @@ def get_events(segments, label_func=lambda x: x.tier):
 # ------------------------------------------------------------------------------
 def process_events(events, labels = []):
     """Process a sorted list of `Event` objects."""
+
     # Initialize return values
     union_sum     = 0
     sections      = []
@@ -146,7 +147,6 @@ def process_category(category, events, labels, output_records):
         output_records['totals'].data[category] += section_sums[label]
     return
 
-
 # ==============================================================================
 # CLI
 # ------------------------------------------------------------------------------
@@ -199,7 +199,7 @@ ignored_tiers = ['code_num', 'on_off', 'context', 'code']
 ignored_tiers.extend(args.ignore)
 
 output = csv.writer(args.output, delimiter=args.delimiter,
-                    escapechar='\\', quoting=csv.QUOTE_MINIMAL) 
+                    escapechar='\\', quoting=csv.QUOTE_MINIMAL)
 output.writerow(OutputRecord.header)
 
 grand_totals = OutputRecord('Grand Totals', '')
