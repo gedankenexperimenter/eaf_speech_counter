@@ -71,7 +71,7 @@ class OutputRecord:
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-def get_records(eaf, tiers):
+def get_segments(eaf, tiers):
     segments = []
     for tier in tiers:
         for record in eaf.get_annotation_data_for_tier(tier):
@@ -81,7 +81,7 @@ def get_records(eaf, tiers):
     return segments
 
 # ------------------------------------------------------------------------------
-def segments_to_events(segments, label_func=lambda x: x.tier):
+def get_events(segments, label_func=lambda x: x.tier):
     """
     Given a list of `AnnotationSegment`s, return a sorted list of
     `Event` objects.
@@ -198,8 +198,8 @@ for eaf_file in args.eaf_files:
     tiers = filter(lambda tier: tier not in ignored_tiers,
                    eaf.get_tier_names())
     tiers = filter(lambda tier: '@' not in tier, tiers)
-    segments = get_records(eaf, tiers)
-    events = segments_to_events(segments)
+    segments = get_segments(eaf, tiers)
+    events = get_events(segments)
     (union_sum, section_sums, sections) = process_events(events)
     labels = sorted(section_sums.keys())
     labels.remove('')
@@ -219,8 +219,8 @@ for eaf_file in args.eaf_files:
     if args.xds:
         tiers = filter(lambda t: t not in ignored_tiers, eaf.get_tier_names())
         xds_tiers = filter(lambda t: 'xds@' in t, tiers)
-        segments = get_records(eaf, xds_tiers)
-        events = segments_to_events(
+        segments = get_segments(eaf, xds_tiers)
+        events = get_events(
             segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
 
         cds_events = filter(lambda x: ':C' in x.label or ':T' in x.label, events)
