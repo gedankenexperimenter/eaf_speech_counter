@@ -95,9 +95,10 @@ def process_events(events, labels = []):
     """Process a sorted list of `Event` objects."""
 
     # Initialize return values
-    union_sum     = 0
-    sections      = []
-    section_sums  = defaultdict(int)
+    union_sum      = 0
+    sections       = []
+    section_sums   = defaultdict(int)
+    section_counts = defaultdict(int)
 
     # Temporary loop variables
     section_labels = []
@@ -117,6 +118,7 @@ def process_events(events, labels = []):
         section_label = '+'.join(sorted(section_labels))
         section_duration = event.timestamp - section_start
         section_sums[section_label] += section_duration
+        section_counts[section_label] += 1
         if section_duration > 0:
             sections.append((section_label, section_duration))
         if section_labels:
@@ -134,14 +136,14 @@ def process_events(events, labels = []):
         if section_labels:
             section_start = event.timestamp
 
-    return union_sum, section_sums, sections
+    return union_sum, section_sums
 
 # ------------------------------------------------------------------------------
 def process_category(category, events, labels, output_records):
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
-    (_, section_sums, _) = process_events(events)
+    (_, section_sums) = process_events(events)
     for label in labels:
         output_records[label].data[category] += section_sums[label]
         output_records['totals'].data[category] += section_sums[label]
@@ -226,11 +228,12 @@ for eaf_file in args.eaf_files:
     events = get_events(segments)
 
     # Calculate sums and overlap for each combination of tiers
-    (union_sum, section_sums, sections) = process_events(events)
+    (union_sum, section_sums) = process_events(events)
 
     # Get list of tier combinations (e.g. `CHI+FA2`)
     labels = sorted(section_sums.keys())
-    labels.remove('') # I'm not sure why this shows up
+    # Ignore gaps between annotated sections
+    labels.remove('')
 
     # Create dictionary for storing output records, and add the record
     # for storing the totals for the whole EAF
