@@ -148,33 +148,57 @@ def process_category(category, events, labels, output_records):
 # ==============================================================================
 # CLI
 # ------------------------------------------------------------------------------
-parser = argparse.ArgumentParser(description = """
-Analyze and report the time segments annotated in EAF files.
-""")
-parser.add_argument('--xds', action='store_true',
-                    help='summarize ADS & CDS amounts')
-parser.add_argument('--totals', metavar='TOTALS_CSV', type=argparse.FileType('w'),
-                    default='totals.csv',
-                    help='file to write to')
-parser.add_argument('--sep', metavar='CSV_SEPARATOR', default='\t',
-                    help='separator to use in the output file')
-parser.add_argument('--ignore', metavar='TIER', nargs='*',
-                    default=[],
-                    help='tiers to ignore')
-parser.add_argument('--overlap', action='store_true',
-                    help='include overlap details in output')
-parser.add_argument('eaf_files', metavar='EAF_FILE', nargs='+',
-                    help='the name(s) of the EAF file(s) to process')
+parser = argparse.ArgumentParser(
+    formatter_class = argparse.RawDescriptionHelpFormatter,
+    description = "Analyze and report the annotated time segments for tiers in EAF files.",
+    epilog =
+    "Examples: {} -o foo.csv raw_FOO/*.eaf\n".format(__file__) +
+    "          {} --ignore-tiers EE1 UC1 -- raw_FOO/*.eaf\n\n".format(__file__) +
+    "[Note: If using --ignore-tiers, separate tier names from EAF file names with '--'.]"
+)
+
+parser.add_argument('-o', '--output',
+                    metavar = '<csv_file>',
+                    type    = argparse.FileType('w'),
+                    default = 'eaf-counts.csv',
+                    help    = "Write output to <csv_file> (default: 'eaf-counts.csv')")
+
+parser.add_argument('-d', '--delimiter',
+                    metavar = '<delimiter>',
+                    default = '\t',
+                    help    = "Use <delimiter> as CSV field separator in output (default: TAB)")
+
+parser.add_argument('--ignore-tiers',
+                    dest    = 'ignore',
+                    metavar = '<tier>',
+                    nargs   = '*',
+                    default = [],
+                    help    = "List of additional EAF tiers to ignore (space separated list)")
+
+parser.add_argument('--no-xds',
+                    dest    = 'xds',
+                    action  = 'store_false',
+                    help    = "Don't summarize ADS & CDS amounts")
+
+parser.add_argument('--no-overlap',
+                    dest    = 'overlap',
+                    action  = 'store_false',
+                    help    = "Don't include tier overlap details in output")
+
+parser.add_argument('eaf_files',
+                    metavar = '<eaf_file>',
+                    nargs   = '+',
+                    help    = "The name(s) of the EAF file(s) to process")
+
 args = parser.parse_args()
 
 # ------------------------------------------------------------------------------
 ignored_tiers = ['code_num', 'on_off', 'context', 'code']
 ignored_tiers.extend(args.ignore)
 
-output = csv.writer(args.totals, delimiter=args.sep,
+output = csv.writer(args.output, delimiter=args.delimiter,
                     escapechar='\\', quoting=csv.QUOTE_MINIMAL) 
 output.writerow(OutputRecord.header)
-#args.totals.write(OutputRecord.header(args.sep) + '\n')
 
 grand_totals = OutputRecord('Grand Totals', '')
 
@@ -222,8 +246,7 @@ for eaf_file in args.eaf_files:
         process_category('ads', ads_events, labels, output_records)
         process_category('both', both_events, labels, output_records)
 
-    labels = output_records.keys()
-    labels.sort()
+    labels = sorted(output_records.keys())
     for label in filter(lambda x: x in tiers, labels):
         output.writerow(output_records[label].fmt())
 
@@ -238,6 +261,6 @@ for eaf_file in args.eaf_files:
 
 # ------------------------------------------------------------------------------
 output.writerow(grand_totals.fmt())
-args.totals.close()
+args.output.close()
 
 exit
