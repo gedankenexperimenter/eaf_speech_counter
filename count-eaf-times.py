@@ -50,24 +50,34 @@ class AnnotatedSegment:
 class OutputRecord:
     """Represents a row of the data table to be written to the output file"""
     data_labels = ['exclusive', 'total', 'cds', 'ads', 'both']
-
-    @staticmethod
-    def header(sep):
-        return sep.join(['File', 'Tier(s)', 'Exclusive', 'Total', 'CDS', 'ADS', 'BOTH'])
+    header = ['File', 'Tier(s)', 'Exclusive', 'Total', 'CDS', 'ADS', 'BOTH']
+    # @staticmethod
+    # def header(sep):
+    #     return sep.join(['File', 'Tier(s)', 'Exclusive', 'Total', 'CDS', 'ADS', 'BOTH'])
 
     def __init__(self, file_id, label):
         self.file_id = file_id
         self.label = label
         self.data = defaultdict(int)
+        return
 
-    def format(self, sep):
+    def fmt(self):
+        values = [self.file_id, self.label]
         def str_blank_zero(entry):
             value = self.data[entry]
             return '' if value == 0 else str(value)
         data_values = map(str_blank_zero, self.data_labels)
-        values = [self.file_id, self.label]
         values.extend(data_values)
-        return sep.join(values)
+        return values
+
+    # def format(self, sep):
+    #     def str_blank_zero(entry):
+    #         value = self.data[entry]
+    #         return '' if value == 0 else str(value)
+    #     data_values = map(str_blank_zero, self.data_labels)
+    #     values = [self.file_id, self.label]
+    #     values.extend(data_values)
+    #     return sep.join(values)
 
 
 # ==============================================================================
@@ -238,13 +248,15 @@ for eaf_file in args.eaf_files:
     labels = output_records.keys()
     labels.sort()
     for label in labels:
-        args.totals.write(output_records[label].format(args.sep) + '\n')
+        output.writerow(output_records[label].fmt())
+        #args.totals.write(output_records[label].format(args.sep) + '\n')
 
     for category in output_records['totals'].data.keys():
         grand_totals.data[category] += output_records['totals'].data[category]
 
 # ------------------------------------------------------------------------------
-args.totals.write(grand_totals.format(args.sep) + '\n')
+output.writerow(grand_totals.fmt())
+#args.totals.write(grand_totals.format(args.sep) + '\n')
 args.totals.close()
 
 exit
