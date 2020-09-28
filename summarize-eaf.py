@@ -141,7 +141,7 @@ def process_category(category, events, labels, output_records):
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
-    (union_sum, section_sums, sections) = process_events(events)
+    (_, section_sums, _) = process_events(events)
     for label in labels:
         output_records[label].data[category] += section_sums[label]
         output_records['totals'].data[category] += section_sums[label]
