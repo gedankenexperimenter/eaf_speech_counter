@@ -139,7 +139,10 @@ args = parser.parse_args()
 
 for eaf_file in args.eaf_files:
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
+    warnings.filterwarnings('ignore')
+    # pympi issues a warning "Parsing unknown version of ELAN spec..."
     eaf = pympi.Elan.Eaf(eaf_file)
+    warnings.filterwarnings('default')
     tiers = filter(lambda tier: tier not in args.ignore,
                    eaf.get_tier_names())
     tiers = filter(lambda tier: '@' not in tier, tiers)
