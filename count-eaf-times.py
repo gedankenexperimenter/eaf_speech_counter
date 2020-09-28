@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import argparse
+import csv
 import glob
 import os
 import sys
@@ -11,8 +12,11 @@ from collections import defaultdict
 
 import pympi  # Import for EAF file read
 
-
+# ==============================================================================
+# Class definitions
+# ------------------------------------------------------------------------------
 class Event:
+    """Represents either the beginning or the end of an annotated segment"""
     def __init__(self, timestamp, label, start=True, annotation=''):
         self.label      = label
         self.annotation = annotation
@@ -22,8 +26,9 @@ class Event:
         else:
             self.change = -1
 
-
+# ------------------------------------------------------------------------------
 class AnnotatedSegment:
+    """Represents an annotated segment from an EAF file"""
     def __init__(self, tier, start_time, end_time, value):
         self.tier       = tier
         self.start_time = int(start_time)
@@ -41,29 +46,33 @@ class AnnotatedSegment:
         else:
             return 0
 
+# ------------------------------------------------------------------------------
 class OutputRecord:
+    """Represents a row of the data table to be written to the output file"""
+    data_labels = ['exclusive', 'total', 'cds', 'ads', 'both']
+
+    @staticmethod
+    def header(sep):
+        return sep.join(['File', 'Tier(s)', 'Exclusive', 'Total', 'CDS', 'ADS', 'BOTH'])
+
     def __init__(self, file_id, label):
         self.file_id = file_id
         self.label = label
         self.data = defaultdict(int)
 
     def format(self, sep):
-        total = ''
-        if self.data['total'] != 0:
-            total = str(self.data['total'])
-        return sep.join([self.file_id,
-                         self.label,
-                         str(self.data['exclusive']),
-                         str(self.data['cds']),
-                         str(self.data['ads']),
-                         str(self.data['both']),
-                         total])
-
-    @staticmethod
-    def header(sep):
-        return sep.join(['File', 'Tier(s)', 'Exclusive', 'CDS', 'ADS', 'BOTH', 'Total'])
+        def str_blank_zero(entry):
+            value = self.data[entry]
+            return '' if value == 0 else str(value)
+        data_values = map(str_blank_zero, self.data_labels)
+        values = [self.file_id, self.label]
+        values.extend(data_values)
+        return sep.join(values)
 
 
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
 def get_records(eaf, tiers):
     segments = []
     for tier in tiers:
@@ -73,6 +82,7 @@ def get_records(eaf, tiers):
                                              end_time, value))
     return segments
 
+# ------------------------------------------------------------------------------
 def segments_to_events(segments, label_func=lambda x: x.tier):
     """
     Given a list of `AnnotationSegment`s, return a sorted list of
@@ -91,6 +101,7 @@ def segments_to_events(segments, label_func=lambda x: x.tier):
     events.sort(key=lambda event: event.timestamp)
     return events
 
+# ------------------------------------------------------------------------------
 def process_events(events, labels = []):
     """Process a sorted list of `Event` objects."""
     # Initialize return values
@@ -135,6 +146,7 @@ def process_events(events, labels = []):
 
     return union_sum, section_sums, sections
 
+# ------------------------------------------------------------------------------
 def process_category(category, events, output_records):
     for event in events:
         event.label = event.label.split(':')[0]
@@ -145,6 +157,9 @@ def process_category(category, events, output_records):
     return
 
 
+# ==============================================================================
+# CLI
+# ------------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description = """
 Analyze and report the time segments annotated in EAF files.
 """)
@@ -156,23 +171,31 @@ parser.add_argument('--totals', metavar='TOTALS_CSV', type=argparse.FileType('w'
 parser.add_argument('--sep', metavar='CSV_SEPARATOR', default='\t',
                     help='separator to use in the output file')
 parser.add_argument('--ignore', metavar='TIER', nargs='*',
-                    default=['code_num', 'on_off', 'context', 'code'],
+                    default=[],
                     help='tiers to ignore')
 parser.add_argument('eaf_files', metavar='EAF_FILE', nargs='+',
                     help='the name(s) of the EAF file(s) to process')
 args = parser.parse_args()
 
-args.totals.write(OutputRecord.header(args.sep) + '\n')
+# ------------------------------------------------------------------------------
+ignored_tiers = ['code_num', 'on_off', 'context', 'code']
+ignored_tiers.extend(args.ignore)
+
+output = csv.writer(args.totals, delimiter=args.sep,
+                    quotechar='"', quoting=csv.QUOTE_MINIMAL) 
+output.writerow(OutputRecord.header)
+#args.totals.write(OutputRecord.header(args.sep) + '\n')
 
 grand_totals = OutputRecord('Grand Totals', '')
 
+# ------------------------------------------------------------------------------
 for eaf_file in args.eaf_files:
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
     warnings.filterwarnings('ignore')
     # pympi issues a warning "Parsing unknown version of ELAN spec..."
     eaf = pympi.Elan.Eaf(eaf_file)
     warnings.filterwarnings('default')
-    tiers = filter(lambda tier: tier not in args.ignore,
+    tiers = filter(lambda tier: tier not in ignored_tiers,
                    eaf.get_tier_names())
     tiers = filter(lambda tier: '@' not in tier, tiers)
     segments = get_records(eaf, tiers)
@@ -192,11 +215,12 @@ for eaf_file in args.eaf_files:
                 output_records[tier].data['total'] += section_sums[label]
                 output_records['totals'].data['total'] += section_sums[label]
 
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if args.xds:
         ads_total = 0
         cds_total = 0
         both_total = 0
-        tiers = filter(lambda tier: tier not in args.ignore,
+        tiers = filter(lambda tier: tier not in ignored_tiers,
                        eaf.get_tier_names())
         xds_tiers = filter(lambda tier: 'xds@' in tier, tiers)
         segments = get_records(eaf, xds_tiers)
@@ -219,6 +243,7 @@ for eaf_file in args.eaf_files:
     for category in output_records['totals'].data.keys():
         grand_totals.data[category] += output_records['totals'].data[category]
 
+# ------------------------------------------------------------------------------
 args.totals.write(grand_totals.format(args.sep) + '\n')
 args.totals.close()
 
