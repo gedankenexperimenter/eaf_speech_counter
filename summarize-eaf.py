@@ -79,14 +79,17 @@ def get_events(segments, label_func=lambda x: x.tier):
     """
     events = []
     for segment in segments:
-        events.append(Event(timestamp = segment.start_time,
-                            label = label_func(segment),
+        # Start of segment
+        events.append(Event(timestamp  = segment.start_time,
+                            label      = label_func(segment),
                             annotation = segment.value,
-                            start = True))
-        events.append(Event(timestamp = segment.end_time,
-                            label = label_func(segment),
+                            start      = True))
+        # End of segment
+        events.append(Event(timestamp  = segment.end_time,
+                            label      = label_func(segment),
                             annotation = segment.value,
-                            start = False))
+                            start      = False))
+    # Sort events chronologically
     events.sort(key=lambda event: event.timestamp)
     return events
 
@@ -150,34 +153,35 @@ def process_category(category, events, labels, output_records):
     return
 
 # ==============================================================================
-# CLI
+# Command-line parser
 # ------------------------------------------------------------------------------
 parser = argparse.ArgumentParser(
     formatter_class = argparse.RawDescriptionHelpFormatter,
     description = "Analyze and report the annotated time segments for tiers in EAF files.",
     epilog =
-    "Examples: {} -o foo.csv raw_FOO/*.eaf\n".format(__file__) +
-    "          {} --ignore-tiers EE1 UC1 -- raw_FOO/*.eaf\n\n".format(__file__) +
-    "[Note: If using --ignore-tiers, separate tier names from EAF file names with '--'.]"
+    "Examples:\n" +
+    "    {} -o foo.csv raw_FOO/*.eaf\n".format(__file__) +
+    "    {} --ignore-tiers EE1 UC1 -- raw_FOO/*.eaf\n\n".format(__file__) +
+    "[When using --ignore-tiers, separate tier names from EAF file names with '--'.]"
 )
 
 parser.add_argument('-o', '--output',
                     metavar = '<csv_file>',
                     type    = argparse.FileType('w'),
                     default = 'eaf-counts.csv',
-                    help    = "Write output to <csv_file> (default: 'eaf-counts.csv')")
+                    help    = "Write output to <csv_file> (default: '%(default)s')")
 
 parser.add_argument('-d', '--delimiter',
-                    metavar = '<delimiter>',
-                    default = '\t',
-                    help    = "Use <delimiter> as CSV field separator in output (default: TAB)")
+                    choices = ['tab', 'comma', 'ascii'],
+                    default = 'tab',
+                    help    = "Use <delimiter> as CSV output field separator (default: '%(default)s')")
 
 parser.add_argument('--ignore-tiers',
                     dest    = 'ignore',
                     metavar = '<tier>',
-                    nargs   = '*',
+                    nargs   = '+',
                     default = [],
-                    help    = "List of additional EAF tiers to ignore (space separated list)")
+                    help    = "List of one or more additional EAF tiers to ignore (space separated list)")
 
 parser.add_argument('--no-xds',
                     dest    = 'xds',
@@ -196,12 +200,24 @@ parser.add_argument('eaf_files',
 
 args = parser.parse_args()
 
+# ==============================================================================
+# Finalize options, initialize output
 # ------------------------------------------------------------------------------
 ignored_tiers = ['code_num', 'on_off', 'context', 'code']
 ignored_tiers.extend(args.ignore)
 
-output = csv.writer(args.output, delimiter=args.delimiter,
-                    escapechar='\\', quoting=csv.QUOTE_MINIMAL)
+output_delimiter = '\t'
+if args.delimiter == 'comma':
+    output_delimiter = ','
+elif args.delimiter == 'ascii':
+    output_delimiter = '\x1f'
+
+# Set up output csv writer
+output = csv.writer(args.output,
+                    delimiter      = output_delimiter,
+                    quoting        = csv.QUOTE_MINIMAL,
+                    lineterminator = '\n')
+# Write headers
 output.writerow(OutputRecord.header)
 
 grand_totals = OutputRecord('Grand Totals', '')
@@ -211,14 +227,20 @@ for eaf_file in args.eaf_files:
     print('Processing {}'.format(eaf_file))
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
 
+    # Initialize the EAF file parser
     warnings.filterwarnings('ignore')
     # pympi issues a warning "Parsing unknown version of ELAN spec..."
     eaf = pympi.Elan.Eaf(eaf_file)
     warnings.filterwarnings('default')
 
-    # Filter out subtiers (`@` is the separator), and ignored tiers
-    tiers = filter(lambda t: '@' not in t and t not in ignored_tiers,
-                   eaf.get_tier_names())
+    # Get tier names from EAF file
+    tiers = eaf.get_tier_names()
+    # Filter out tiers with no sub-tiers
+    tiers = filter(lambda t: '@' in t, tiers)
+    # From those, extract the set of unique base tiers
+    tiers = sorted(set(map(lambda t: t.split('@')[-1], tiers)))
+    # Filter out ignored tiers
+    tiers = filter(lambda t: t not in ignored_tiers, tiers)
 
     # Extract annotated segments from EAF
     segments = get_segments(eaf, tiers)
