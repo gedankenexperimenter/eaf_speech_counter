@@ -222,6 +222,8 @@ output.writerow(OutputRecord.header)
 
 grand_totals = OutputRecord('Grand Totals', '')
 
+# ==============================================================================
+# Start processing EAF files
 # ------------------------------------------------------------------------------
 for eaf_file in args.eaf_files:
     print('Processing {}'.format(eaf_file))
