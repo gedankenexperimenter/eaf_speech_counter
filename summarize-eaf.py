@@ -59,6 +59,11 @@ class Event:
         else:
             self.change = -1
 
+    def fmt(self):
+        return '{:10d} {:+d} {} -- {}'.format(
+            self.timestamp, self.change, self.label, self.annotation
+        )
+
 # ------------------------------------------------------------------------------
 class Segment:
     """Represents an annotated segment from an EAF file"""
@@ -148,8 +153,7 @@ def process_events(events, labels = []):
             continue
 
         if (args.verbose > 2):
-            logging.debug('Event: %10d %+d %s',
-                          event.timestamp, event.change, event.label)
+            logging.debug('Event: %s', event.fmt())
         # We have reached the end of a section where a given set of
         # labels was active (either a new one started, or an active one
         # ended. We add the duration of the section to the appropriate
