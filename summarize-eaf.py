@@ -147,6 +147,9 @@ def process_events(events, labels = []):
         if labels and event.label not in labels:
             continue
 
+        if (args.verbose > 2):
+            logging.debug('Event: %10d %+d %s',
+                          event.timestamp, event.change, event.label)
         # We have reached the end of a section where a given set of
         # labels was active (either a new one started, or an active one
         # ended. We add the duration of the section to the appropriate
