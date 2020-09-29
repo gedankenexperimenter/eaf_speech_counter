@@ -30,6 +30,7 @@ from __future__ import print_function
 
 import argparse
 import csv
+import logging
 import os
 import sys
 import warnings
@@ -225,6 +226,11 @@ parser.add_argument('--no-overlap',
                     action  = 'store_false',
                     help    = "Don't include tier overlap details in output")
 
+parser.add_argument('-v', '--verbose',
+                    action  = 'count',
+                    default = 0,
+                    help    = "Write status messages to STDERR while processing")
+
 parser.add_argument('eaf_files',
                     metavar = '<eaf_file>',
                     nargs   = '+',
@@ -235,8 +241,15 @@ args = parser.parse_args()
 # ==============================================================================
 # Finalize options, initialize output
 # ------------------------------------------------------------------------------
+log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+log_level = log_levels[min(args.verbose, len(log_levels) - 1)]
+
+logging.basicConfig(level  = log_level,
+                    format = '%(levelname)s %(message)s')
+
 ignored_tiers = ['code_num', 'on_off', 'context', 'code']
 ignored_tiers.extend(args.ignore)
+logging.info('Ignoring tiers: {}'.format(ignored_tiers))
 
 output_delimiter = '\t'
 if args.delimiter == 'comma':
@@ -251,6 +264,7 @@ output = csv.writer(args.output,
                     lineterminator = '\n')
 # Write headers
 output.writerow(OutputRecord.header)
+logging.debug('Writing output header')
 
 grand_totals = OutputRecord('Grand Totals', '')
 
@@ -258,7 +272,7 @@ grand_totals = OutputRecord('Grand Totals', '')
 # Start processing EAF files
 # ------------------------------------------------------------------------------
 for eaf_file in args.eaf_files:
-    print('Processing {}'.format(eaf_file))
+    logging.info('Processing {}'.format(eaf_file))
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
 
     # Initialize the EAF file parser
@@ -268,16 +282,20 @@ for eaf_file in args.eaf_files:
     warnings.filterwarnings('default')
 
     # Get tier names from EAF file
-    tiers = eaf.get_tier_names()
+    all_tiers = eaf.get_tier_names()
     # Filter out tiers with no sub-tiers
-    tiers = filter(lambda t: '@' in t, tiers)
+    tiers = filter(lambda t: '@' in t, all_tiers)
     # From those, extract the set of unique base tiers
     tiers = sorted(set(map(lambda t: t.split('@')[-1], tiers)))
     # Filter out ignored tiers
     tiers = filter(lambda t: t not in ignored_tiers, tiers)
+    logging.debug('Ignoring tiers: {}'.format(
+        filter(lambda t: t not in tiers, all_tiers)
+    ))
 
     # Extract annotated segments from EAF
     segments = get_segments(eaf, tiers)
+    logging.debug('Found {:,} segments'.format(len(segments)))
 
     # Convert segments (with start & end times) to events (with either
     # a start or end timestamp, but not both)
@@ -285,11 +303,14 @@ for eaf_file in args.eaf_files:
 
     # Calculate sums and overlap for each combination of tiers
     (union_sum, section_sums) = process_events(events)
+    logging.debug('Union sum: {:,} ms'.format(union_sum))
+    logging.debug('Found {:,} section types'.format(len(section_sums)))
 
     # Get list of tier combinations (e.g. `CHI+FA2`)
     labels = sorted(section_sums.keys())
     # Ignore gaps between annotated sections
     labels.remove('')
+    logging.debug('Empty sections sum: {:,} ms'.format(section_sums['']))
 
     # Create dictionary for storing output records, and add the record
     # for storing the totals for the whole EAF
@@ -318,9 +339,11 @@ for eaf_file in args.eaf_files:
         tiers = filter(lambda t: t not in ignored_tiers, eaf.get_tier_names())
         # Narrow that list to only the tiers with ADS & CDS annotations
         xds_tiers = filter(lambda t: 'xds@' in t, tiers)
+        logging.debug('XDS tiers found: {}'.format(xds_tiers))
 
         # Extract annotated segment data for the XDS tiers
         segments = get_segments(eaf, xds_tiers)
+        logging.debug('Found {:,} XDS segments'.format(len(segments)))
 
         # Convert segments to events list, setting the event labels to
         # the base tier name with the annotation code appended (for
@@ -332,6 +355,9 @@ for eaf_file in args.eaf_files:
         cds_events = filter(lambda x: ':C' in x.label or ':T' in x.label, events)
         ads_events = filter(lambda x: ':A' in x.label, events)
         both_events = filter(lambda x: ':B' in x.label, events)
+        logging.debug('Events found: CDS: {}, ADS: {}, BOTH: {}'.format(
+            len(cds_events), len(ads_events), len(both_events)
+        ))
 
         # Process the categories, adding the extracted data to the
         # corresponding output records
