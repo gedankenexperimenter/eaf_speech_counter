@@ -350,6 +350,9 @@ for eaf_file in args.eaf_files:
         # Narrow that list to only the tiers with ADS & CDS annotations
         xds_tiers = filter(lambda t: 'xds@' in t, tiers)
         logging.debug('XDS tiers found: {}'.format(xds_tiers))
+        for tier in xds_tiers:
+            if 'CHI' in tier:
+                logging.warn('Tier %s contains XDS annotations.', tier)
 
         # Extract annotated segment data for the XDS tiers
         segments = get_segments(eaf, xds_tiers)
