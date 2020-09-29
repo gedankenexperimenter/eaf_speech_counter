@@ -152,8 +152,7 @@ def process_events(events, labels = []):
         if labels and event.label not in labels:
             continue
 
-        if (args.verbose > 2):
-            logging.debug('Event: %s', event.fmt())
+        logging.log(logging.VERBOSE, 'Event: %s', event.fmt())
         # We have reached the end of a section where a given set of
         # labels was active (either a new one started, or an active one
         # ended. We add the duration of the section to the appropriate
@@ -251,7 +250,8 @@ args = parser.parse_args()
 # ==============================================================================
 # Finalize options, initialize output
 # ------------------------------------------------------------------------------
-log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+logging.VERBOSE = 5
+log_levels = [logging.WARNING, logging.INFO, logging.DEBUG, logging.VERBOSE]
 log_level = log_levels[min(args.verbose, len(log_levels) - 1)]
 
 logging.basicConfig(level  = log_level,
