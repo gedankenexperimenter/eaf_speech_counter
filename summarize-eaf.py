@@ -236,7 +236,10 @@ parser.add_argument('--no-overlap',
 parser.add_argument('-v', '--verbose',
                     action  = 'count',
                     default = 0,
-                    help    = "Write status messages to STDERR while processing")
+                    help    = """
+                    Write status messages to STDERR while processing. Use multiple
+                    times to increase verbosity. Beware of using more than two; output
+                    will be extremely verbose.""")
 
 parser.add_argument('eaf_files',
                     metavar = '<eaf_file>',
