@@ -182,6 +182,7 @@ def process_events(events, labels = []):
 
 # ------------------------------------------------------------------------------
 def process_category(category, events, labels, output_records):
+    """Utility function for adding XDS values to output records"""
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
