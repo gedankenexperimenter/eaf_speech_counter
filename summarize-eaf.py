@@ -195,7 +195,9 @@ def process_category(category, events, labels, output_records,
     for event in events:
         event.label = event.label.split(':')[0]
     (_, section_sums) = process_events(events, masking_tiers = masking_tiers)
-    logging.debug('Sections found: {}'.format(section_sums))
+    logging.debug('{} sections found: {}'.format(
+        category.upper(), section_sums.keys()
+    ))
     for label in labels:
         output_records[label].data[category] += section_sums[label]
         output_records['totals'].data[category] += section_sums[label]
@@ -320,19 +322,26 @@ for eaf_file in args.eaf_files:
 
     # Get tier names from EAF file
     all_tiers = eaf.get_tier_names()
-    # Filter out tiers with no sub-tiers
-    tiers = filter(lambda t: '@' in t, all_tiers)
-    # From those, extract the set of unique base tiers
-    tiers = sorted(set(map(lambda t: t.split('@')[-1], tiers)))
+    logging.debug('All tiers: {}'.format(list(all_tiers)))
+    # Filter out tiers with no sub-tiers by selecting only sub-tiers, then
+    # stripping out all but the last (base) element in the tier name
+    tiers = set(map(lambda t: t.split('@')[-1],
+                    filter(lambda t: '@' in t, all_tiers)))
+    logging.debug('Tiers with sub-tiers: {}'.format(tiers))
     # Filter out ignored tiers
-    tiers = filter(lambda t: t not in ignored_tiers, tiers)
+    tiers = list(filter(lambda t: t not in ignored_tiers, tiers))
     logging.debug('Ignoring tiers: {}'.format(
-        filter(lambda t: t not in tiers, all_tiers)
+        list(filter(lambda t: t not in tiers, all_tiers))
     ))
 
     # Extract annotated segments from EAF
     segments = get_segments(eaf, tiers)
     logging.debug('Found {:,} segments'.format(len(segments)))
+
+    if len(segments) == 0:
+        logging.warning('No matching annotated segments found in file %s',
+                        eaf_file)
+        continue
 
     # Convert segments (with start & end times) to events (with either
     # a start or end timestamp, but not both)
@@ -374,9 +383,10 @@ for eaf_file in args.eaf_files:
     if args.xds:
         # Get the list of tiers, including sub-tiers, but excluding
         # the ignored ones
-        tiers = filter(lambda t: t not in ignored_tiers, eaf.get_tier_names())
+        tiers = list(filter(lambda t: t not in ignored_tiers,
+                            eaf.get_tier_names()))
         # Narrow that list to only the tiers with ADS & CDS annotations
-        xds_tiers = filter(lambda t: 'xds@' in t, tiers)
+        xds_tiers = list(filter(lambda t: 'xds@' in t, tiers))
         logging.debug('XDS tiers found: {}'.format(xds_tiers))
         for tier in xds_tiers:
             if 'CHI' in tier:
@@ -397,9 +407,9 @@ for eaf_file in args.eaf_files:
         #     len(cds_events), len(ads_events), len(both_events)
         # ))
         xds_events = {
-            'cds': filter(lambda x: ':C' in x.label or ':T' in x.label, events),
-            'ads': filter(lambda x: ':A' in x.label, events),
-            'both': filter(lambda x: ':B' in x.label, events),
+            'cds': list(filter(lambda x: ':C' in x.label or ':T' in x.label, events)),
+            'ads': list(filter(lambda x: ':A' in x.label, events)),
+            'both': list(filter(lambda x: ':B' in x.label, events)),
         }
         for key, value in xds_events.items():
             logging.debug('{} events found: {}'.format(key.upper(), len(value)))
