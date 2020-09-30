@@ -127,12 +127,10 @@ def get_events(segments, label_func=lambda x: x.tier):
                             label      = label_func(segment),
                             annotation = segment.value,
                             start      = False))
-    # Sort events chronologically
-    events.sort(key=lambda event: event.timestamp)
     return events
 
 # ------------------------------------------------------------------------------
-def process_events(events, labels = []):
+def process_events(events, labels = [], masking_tiers = []):
     """Process a sorted list of `Event` objects."""
 
     # Initialize return values
@@ -146,6 +144,9 @@ def process_events(events, labels = []):
     # Ignore any uncategorized space before the first event
     section_start = events[0].timestamp
 
+    # Sort events chronologically
+    events.sort(key = lambda event: event.timestamp)
+
     for event in events:
         # Any labels not included are ignored. Default is to consider
         # all labels.
@@ -158,13 +159,19 @@ def process_events(events, labels = []):
         # ended. We add the duration of the section to the appropriate
         # combination of labels' total.
         section_label = '+'.join(sorted(section_labels))
-        section_duration = event.timestamp - section_start
-        section_sums[section_label] += section_duration
-        section_counts[section_label] += 1
-        if section_duration > 0:
-            sections.append((section_label, section_duration))
-        if section_labels:
-            union_sum += section_duration
+        mask_section = False
+        for tier in masking_tiers:
+            if tier in section_labels:
+                mask_section = True
+                break
+        if not mask_section:
+            section_duration = event.timestamp - section_start
+            section_sums[section_label] += section_duration
+            section_counts[section_label] += 1
+            if section_duration > 0:
+                sections.append((section_label, section_duration))
+            if section_labels:
+                union_sum += section_duration
 
         # Either a new label started, or an existing one ended. Either
         # way, we need to update the list of current labels.
@@ -181,12 +188,14 @@ def process_events(events, labels = []):
     return union_sum, section_sums
 
 # ------------------------------------------------------------------------------
-def process_category(category, events, labels, output_records):
+def process_category(category, events, labels, output_records,
+                     masking_tiers = []):
     """Utility function for adding XDS values to output records"""
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
-    (_, section_sums) = process_events(events)
+    (_, section_sums) = process_events(events, masking_tiers = masking_tiers)
+    logging.debug('Sections found: {}'.format(section_sums))
     for label in labels:
         output_records[label].data[category] += section_sums[label]
         output_records['totals'].data[category] += section_sums[label]
@@ -216,12 +225,19 @@ parser.add_argument('-d', '--delimiter',
                     default = 'tab',
                     help    = "Use <delimiter> as CSV output field separator (default: '%(default)s')")
 
-parser.add_argument('--ignore-tiers',
+parser.add_argument('-i', '--ignore-tiers',
                     dest    = 'ignore',
                     metavar = '<tier>',
                     nargs   = '+',
                     default = [],
                     help    = "List of one or more additional EAF tiers to ignore (space separated list)")
+
+parser.add_argument('-m', '--masking-tiers',
+                    dest    = 'mask',
+                    metavar = '<tier>',
+                    nargs   = '+',
+                    default = [],
+                    help    = "List of one or more EAF tiers to use as a mask (space separated list)")
 
 parser.add_argument('--no-xds',
                     dest    = 'xds',
@@ -313,7 +329,8 @@ for eaf_file in args.eaf_files:
     events = get_events(segments)
 
     # Calculate sums and overlap for each combination of tiers
-    (union_sum, section_sums) = process_events(events)
+    (union_sum, section_sums) = process_events(events,
+                                               masking_tiers = args.mask)
     logging.debug('Union sum: {:,} ms'.format(union_sum))
     logging.debug('Found {:,} section types'.format(len(section_sums)))
 
@@ -366,18 +383,26 @@ for eaf_file in args.eaf_files:
             segments, lambda x: x.tier.split('@')[-1] + ':' + x.value)
 
         # Create filtered lists corresponding to ADS, CDS, and BOTH annotations
-        cds_events = filter(lambda x: ':C' in x.label or ':T' in x.label, events)
-        ads_events = filter(lambda x: ':A' in x.label, events)
-        both_events = filter(lambda x: ':B' in x.label, events)
-        logging.debug('Events found: CDS: {}, ADS: {}, BOTH: {}'.format(
-            len(cds_events), len(ads_events), len(both_events)
-        ))
+        # logging.debug('Events found: CDS: {}, ADS: {}, BOTH: {}'.format(
+        #     len(cds_events), len(ads_events), len(both_events)
+        # ))
+        xds_events = {
+            'cds': filter(lambda x: ':C' in x.label or ':T' in x.label, events),
+            'ads': filter(lambda x: ':A' in x.label, events),
+            'both': filter(lambda x: ':B' in x.label, events),
+        }
+        for key, value in xds_events.items():
+            logging.debug('{} events found: {}'.format(key.upper(), len(value)))
 
-        # Process the categories, adding the extracted data to the
-        # corresponding output records
-        process_category('cds', cds_events, labels, output_records)
-        process_category('ads', ads_events, labels, output_records)
-        process_category('both', both_events, labels, output_records)
+        # If we're masking segments, get the segments that will be used
+        logging.debug('Masking tiers: {}'.format(args.mask))
+        masking_segments = get_segments(eaf, args.mask)
+        masking_events = get_events(masking_segments)
+
+        for code, events in xds_events.items():
+            events.extend(masking_events)
+            process_category(code, events, labels, output_records,
+                             masking_tiers = args.mask)
 
     # Get the list of labels for all output records
     labels = sorted(output_records.keys())
