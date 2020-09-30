@@ -249,6 +249,11 @@ parser.add_argument('--no-overlap',
                     action  = 'store_false',
                     help    = "Don't include tier overlap details in output")
 
+parser.add_argument('--no-totals',
+                    dest    = 'totals',
+                    action  = 'store_false',
+                    help    = "Don't include Totals row(s) in output table")
+
 parser.add_argument('-v', '--verbose',
                     action  = 'count',
                     default = 0,
@@ -418,6 +423,10 @@ for eaf_file in args.eaf_files:
         for label in filter(lambda x: x not in tiers, labels):
             output.writerow(output_records[label].fmt())
 
+    # If the user requested to suppress `Totals` rows, move on to the next file
+    if not args.totals:
+        continue
+
     # Write the totals for the current EAF file
     output.writerow(output_records['totals'].fmt())
 
@@ -426,8 +435,9 @@ for eaf_file in args.eaf_files:
         grand_totals.data[category] += output_records['totals'].data[category]
 
 # ------------------------------------------------------------------------------
-# Finally, write the Grand Totals row
-output.writerow(grand_totals.fmt())
+# Finally, write the Grand Totals row if multiple files were processed
+if args.totals and len(args.eaf_files) > 1:
+    output.writerow(grand_totals.fmt())
 args.output.close()
 
 exit
