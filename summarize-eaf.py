@@ -307,9 +307,14 @@ for eaf_file in args.eaf_files:
     logging.info('Processing {}'.format(eaf_file))
     file_id = os.path.basename(eaf_file).replace('.eaf', '')
 
+    # If the EAF file version is >2.8, pympi 1.69 won't recognize
+    # them, and issues a warning. We assume here that the data we have
+    # is compatible with the old version, and suppress the warning
+    # message from pympi.
+    warnings.filterwarnings('ignore', message =
+                            'Parsing unknown version of ELAN spec... '
+                            'This could result in errors...')
     # Initialize the EAF file parser
-    warnings.filterwarnings('ignore')
-    # pympi issues a warning "Parsing unknown version of ELAN spec..."
     eaf = pympi.Elan.Eaf(eaf_file)
     warnings.filterwarnings('default')
 
