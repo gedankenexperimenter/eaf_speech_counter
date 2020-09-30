@@ -222,7 +222,7 @@ parser.add_argument('-o', '--output',
 
 parser.add_argument('-d', '--delimiter',
                     choices = ['tab', 'comma', 'ascii'],
-                    default = 'tab',
+                    default = 'comma',
                     help    = "Use <delimiter> as CSV output field separator (default: '%(default)s')")
 
 parser.add_argument('-i', '--ignore-tiers',
