@@ -300,7 +300,7 @@ output = csv.writer(args.output,
 output.writerow(OutputRecord.header)
 logging.debug('Writing output header')
 
-grand_totals = OutputRecord('Grand Totals', '')
+grand_totals = OutputRecord('*', 'Grand Totals')
 
 # ==============================================================================
 # Start processing EAF files
