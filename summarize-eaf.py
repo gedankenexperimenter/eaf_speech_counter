@@ -130,17 +130,16 @@ def get_events(segments, label_func=lambda x: x.tier):
     return events
 
 # ------------------------------------------------------------------------------
-def process_events(events, labels = [], masking_tiers = []):
+def process_events(events, masking_tiers = [], limiting_tier = None):
     """Process a sorted list of `Event` objects."""
 
     # Initialize return values
     union_sum      = 0
     sections       = []
     section_sums   = defaultdict(int)
-    section_counts = defaultdict(int)
 
     # Temporary loop variables
-    section_labels = []
+    section_tiers = set()
     # Ignore any uncategorized space before the first event
     section_start = events[0].timestamp
 
@@ -148,53 +147,58 @@ def process_events(events, labels = [], masking_tiers = []):
     events.sort(key = lambda event: event.timestamp)
 
     for event in events:
-        # Any labels not included are ignored. Default is to consider
-        # all labels.
-        if labels and event.label not in labels:
-            continue
-
         logging.log(logging.VERBOSE, 'Event: %s', event.fmt())
         # We have reached the end of a section where a given set of
         # labels was active (either a new one started, or an active one
         # ended. We add the duration of the section to the appropriate
         # combination of labels' total.
-        section_label = '+'.join(sorted(section_labels))
+        section_label_components = sorted(section_tiers)
+        if limiting_tier and limiting_tier in section_tiers:
+            section_label_components.remove(limiting_tier)
+        section_label = '+'.join(section_label_components)
+
         mask_section = False
+
         for tier in masking_tiers:
-            if tier in section_labels:
+            if tier in section_tiers:
                 mask_section = True
                 break
-        if not mask_section:
+
+        if limiting_tier and limiting_tier not in section_tiers:
+            mask_section = True
+
+        if section_label and not mask_section:
             section_duration = event.timestamp - section_start
             section_sums[section_label] += section_duration
-            section_counts[section_label] += 1
+            union_sum += section_duration
             if section_duration > 0:
                 sections.append((section_label, section_duration))
-            if section_labels:
-                union_sum += section_duration
 
         # Either a new label started, or an existing one ended. Either
         # way, we need to update the list of current labels.
         if event.change > 0:
-            section_labels.append(event.label)
+            section_tiers.add(event.label)
         else:
-            section_labels.remove(event.label)
+            if event.label in section_tiers:
+                section_tiers.remove(event.label)
 
         # Now, if there are any active labels, set the timestamp to
         # record the next section.
-        if section_labels:
+        if section_tiers:
             section_start = event.timestamp
 
     return union_sum, section_sums
 
 # ------------------------------------------------------------------------------
 def process_category(category, events, labels, output_records,
-                     masking_tiers = []):
+                     masking_tiers = [], limiting_tier = None):
     """Utility function for adding XDS values to output records"""
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
-    (_, section_sums) = process_events(events, masking_tiers = masking_tiers)
+    (_, section_sums) = process_events(events,
+                                       masking_tiers = masking_tiers,
+                                       limiting_tier = limiting_tier)
     logging.debug('{} sections found: {}'.format(
         category.upper(), section_sums.keys()
     ))
@@ -233,6 +237,12 @@ parser.add_argument('-i', '--ignore-tiers',
                     nargs   = '+',
                     default = [],
                     help    = "List of one or more additional EAF tiers to ignore (space separated list)")
+
+parser.add_argument('-l', '--limiting-tier',
+                    dest    = 'limiting_tier',
+                    metavar = '<tier>',
+                    default = None,
+                    help    = "The name of an EAF tier to be used to limit the scope of processed segments")
 
 parser.add_argument('-m', '--masking-tiers',
                     dest    = 'mask',
@@ -281,8 +291,10 @@ log_level = log_levels[min(args.verbose, len(log_levels) - 1)]
 logging.basicConfig(level  = log_level,
                     format = '%(levelname)s %(message)s')
 
-ignored_tiers = ['code_num', 'on_off', 'context', 'code']
-ignored_tiers.extend(args.ignore)
+ignored_tiers = set(['code_num', 'on_off', 'context'])
+ignored_tiers.update(args.ignore)
+if args.limiting_tier and args.limiting_tier in ignored_tiers:
+    ignored_tiers.remove(args.limiting_tier)
 logging.info('Ignoring tiers: {}'.format(ignored_tiers))
 
 output_delimiter = '\t'
@@ -328,6 +340,11 @@ for eaf_file in args.eaf_files:
     tiers = set(map(lambda t: t.split('@')[-1],
                     filter(lambda t: '@' in t, all_tiers)))
     logging.debug('Tiers with sub-tiers: {}'.format(tiers))
+
+    # Add limiting tier, if it doesn't have any sub-tiers
+    if args.limiting_tier:
+        tiers.add(args.limiting_tier)
+
     # Filter out ignored tiers
     tiers = list(filter(lambda t: t not in ignored_tiers, tiers))
     logging.debug('Ignoring tiers: {}'.format(
@@ -349,14 +366,17 @@ for eaf_file in args.eaf_files:
 
     # Calculate sums and overlap for each combination of tiers
     (union_sum, section_sums) = process_events(events,
-                                               masking_tiers = args.mask)
+                                               masking_tiers = args.mask,
+                                               limiting_tier = args.limiting_tier)
     logging.debug('Union sum: {:,} ms'.format(union_sum))
     logging.debug('Found {:,} section types'.format(len(section_sums)))
 
     # Get list of tier combinations (e.g. `CHI+FA2`)
     labels = sorted(section_sums.keys())
+
     # Ignore gaps between annotated sections
-    labels.remove('')
+    if '' in labels:
+        labels.remove('')
     logging.debug('Empty sections sum: {:,} ms'.format(section_sums['']))
 
     # Create dictionary for storing output records, and add the record
@@ -419,10 +439,16 @@ for eaf_file in args.eaf_files:
         masking_segments = get_segments(eaf, args.mask)
         masking_events = get_events(masking_segments)
 
+        # If there's a limiting tier, get the segments for that tier
+        limiting_segments = get_segments(eaf, [args.limiting_tier])
+        limiting_events = get_events(limiting_segments)
+
         for code, events in xds_events.items():
             events.extend(masking_events)
+            events.extend(limiting_events)
             process_category(code, events, labels, output_records,
-                             masking_tiers = args.mask)
+                             masking_tiers = args.mask,
+                             limiting_tier = args.limiting_tier)
 
     # Get the list of labels for all output records
     labels = sorted(output_records.keys())
