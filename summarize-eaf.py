@@ -177,6 +177,9 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
         # Either a new label started, or an existing one ended. Either
         # way, we need to update the list of current labels.
         if event.change > 0:
+            if event.label in section_tiers:
+                logging.warning('Found overlapping segments in tier %s at time %s',
+                                event.label, event.timestamp)
             section_tiers.add(event.label)
         else:
             if event.label in section_tiers:
