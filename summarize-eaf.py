@@ -141,7 +141,7 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
     section_sums   = defaultdict(int)
 
     # Temporary loop variables
-    section_tiers = set()
+    section_tiers = []
     # Ignore any uncategorized space before the first event
     section_start = events[0].timestamp
 
@@ -154,10 +154,10 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
         # labels was active (either a new one started, or an active one
         # ended. We add the duration of the section to the appropriate
         # combination of labels' total.
-        section_label_components = sorted(section_tiers)
-        if limiting_tier and limiting_tier in section_tiers:
+        section_label_components = set(section_tiers)
+        if limiting_tier and limiting_tier in section_label_components:
             section_label_components.remove(limiting_tier)
-        section_label = '+'.join(section_label_components)
+        section_label = '+'.join(sorted(section_label_components))
 
         mask_section = False
 
@@ -180,10 +180,9 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
             if event.label in section_tiers:
                 logging.warning('Found overlapping segments in tier %s at time %s',
                                 event.label, event.timestamp)
-            section_tiers.add(event.label)
+            section_tiers.append(event.label)
         else:
-            if event.label in section_tiers:
-                section_tiers.remove(event.label)
+            section_tiers.remove(event.label)
 
         # Now, if there are any active labels, set the timestamp to
         # record the next section.
@@ -443,8 +442,11 @@ for eaf_file in args.eaf_files:
         masking_events = get_events(masking_segments)
 
         # If there's a limiting tier, get the segments for that tier
-        limiting_segments = get_segments(eaf, [args.limiting_tier])
-        limiting_events = get_events(limiting_segments)
+        if args.limiting_tier:
+            limiting_segments = get_segments(eaf, [args.limiting_tier])
+            limiting_events = get_events(limiting_segments)
+        else:
+            limiting_events = []
 
         for code, events in xds_events.items():
             events.extend(masking_events)
