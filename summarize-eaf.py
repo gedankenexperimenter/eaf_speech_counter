@@ -135,7 +135,6 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
 
     # Initialize return values
     union_sum      = 0
-    sections       = []
     section_sums   = defaultdict(int)
 
     # Temporary loop variables
@@ -171,8 +170,6 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
             section_duration = event.timestamp - section_start
             section_sums[section_label] += section_duration
             union_sum += section_duration
-            if section_duration > 0:
-                sections.append((section_label, section_duration))
 
         # Either a new label started, or an existing one ended. Either
         # way, we need to update the list of current labels.
