@@ -117,6 +117,9 @@ def get_events(segments, label_func=lambda x: x.tier):
     """
     events = []
     for segment in segments:
+        if segment.start_time > segment.end_time:
+            logging.warning('Found segment with start time (%s) > end time (%s)',
+                            segment.start_time, segment.end_time)
         # Start of segment
         events.append(Event(timestamp  = segment.start_time,
                             label      = label_func(segment),
