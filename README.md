@@ -132,6 +132,21 @@ the others, and report totals from the other tiers as if the ignored tiers were
 not present. Most likely, this would be used to filter out electronic devices
 (i.e. the `EE1` tier).
 
+### Limiting the counted segments to the "code" tier
+
+The segments (or partial segments) included in the output can be limited to ones
+that overlap with the `code` tier (or any other specified tier) using the
+`--limiting-tier` option. If this option is used, only the portion of the EAF
+file that is marked with the specified tier (usually `code`) will be included in
+the output summary.
+
+With the `--limiting-tier-pattern` option, it's possible to further restrict the
+included sections to ones that are annotated with text that matches a specified
+regular expression. Only matching segments of the limiting tier will be
+summarized in the output, unless the option `--negate-limiting-tier-pattern` is
+also used, in which case the segments that match will be filtered out, and the
+non-matching segments of the limiting tier will be summarized instead.
+
 ### Using a tier as a mask
 
 The `--masking-tiers` option turns the specified tier into an "input mask" for
