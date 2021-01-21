@@ -32,6 +32,7 @@ import argparse
 import csv
 import logging
 import os
+import re
 import sys
 import warnings
 
@@ -133,7 +134,10 @@ def get_events(segments, label_func=lambda x: x.tier):
     return events
 
 # ------------------------------------------------------------------------------
-def process_events(events, masking_tiers = [], limiting_tier = None):
+def process_events(events, masking_tiers = [],
+                   limiting_tier = None,
+                   limiting_annotation_regex = '.*',
+                   negate_limiting_annotation_regex = False):
     """Process a sorted list of `Event` objects."""
 
     # Initialize return values
@@ -168,11 +172,22 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
 
         if limiting_tier and limiting_tier not in section_tiers:
             mask_section = True
+            logging.debug('not counting this section: {}'.format(section_tiers))
 
         if section_label and not mask_section:
+            logging.debug('section tiers: {}'.format(section_tiers))
             section_duration = event.timestamp - section_start
             section_sums[section_label] += section_duration
             union_sum += section_duration
+
+        # If this event is for the limiting tier, we check its annotation for a
+        # match, and based on that, we decide whether or not to ignore it.
+        if event.label == limiting_tier:
+            update_tier = bool(re.search(limiting_annotation_regex, event.annotation))
+            if negate_limiting_annotation_regex:
+                update_tier = not update_tier
+            if not update_tier:
+                continue
 
         # Either a new label started, or an existing one ended. Either
         # way, we need to update the list of current labels.
@@ -193,14 +208,18 @@ def process_events(events, masking_tiers = [], limiting_tier = None):
 
 # ------------------------------------------------------------------------------
 def process_category(category, events, labels, output_records,
-                     masking_tiers = [], limiting_tier = None):
+                     masking_tiers = [], limiting_tier = None,
+                     limiting_regex = '.*',
+                     negate_regex = False):
     """Utility function for adding XDS values to output records"""
     if len(events) == 0: return
     for event in events:
         event.label = event.label.split(':')[0]
     (_, section_sums) = process_events(events,
                                        masking_tiers = masking_tiers,
-                                       limiting_tier = limiting_tier)
+                                       limiting_tier = limiting_tier,
+                                       limiting_annotation_regex = limiting_regex,
+                                       negate_limiting_annotation_regex = negate_regex)
     logging.debug('{} sections found: {}'.format(
         category.upper(), section_sums.keys()
     ))
@@ -240,18 +259,30 @@ parser.add_argument('-i', '--ignore-tiers',
                     default = [],
                     help    = "List of one or more additional EAF tiers to ignore (space separated list)")
 
-parser.add_argument('-l', '--limiting-tier',
-                    dest    = 'limiting_tier',
-                    metavar = '<tier>',
-                    default = None,
-                    help    = "The name of an EAF tier to be used to limit the scope of processed segments")
-
 parser.add_argument('-m', '--masking-tiers',
                     dest    = 'mask',
                     metavar = '<tier>',
                     nargs   = '+',
                     default = [],
                     help    = "List of one or more EAF tiers to use as a mask (space separated list)")
+
+parser.add_argument('-l', '--limiting-tier',
+                    dest    = 'limiting_tier',
+                    metavar = '<tier>',
+                    default = None,
+                    help    = "The name of an EAF tier to be used to limit the scope of processed segments")
+
+parser.add_argument('-p', '--limiting-tier-pattern',
+                    dest    = 'limiting_tier_pattern',
+                    metavar = '<regex>',
+                    default = '.*',
+                    help    = "A regex to match on the annotation labels for the limiting tier")
+
+parser.add_argument('-x', '--negate-limiting-tier-pattern',
+                    dest    = 'negate_pattern',
+                    action  = 'store_true',
+                    help    = """Match all sections of limiting tier that don't match the pattern instead of
+                    ones that do""")
 
 parser.add_argument('--no-xds',
                     dest    = 'xds',
@@ -293,7 +324,7 @@ log_level = log_levels[min(args.verbose, len(log_levels) - 1)]
 logging.basicConfig(level  = log_level,
                     format = '%(levelname)s %(message)s')
 
-ignored_tiers = set(['code_num', 'on_off', 'context'])
+ignored_tiers = set(['code', 'code_num', 'on_off', 'context'])
 ignored_tiers.update(args.ignore)
 if args.limiting_tier and args.limiting_tier in ignored_tiers:
     ignored_tiers.remove(args.limiting_tier)
@@ -369,7 +400,9 @@ for eaf_file in args.eaf_files:
     # Calculate sums and overlap for each combination of tiers
     (union_sum, section_sums) = process_events(events,
                                                masking_tiers = args.mask,
-                                               limiting_tier = args.limiting_tier)
+                                               limiting_tier = args.limiting_tier,
+                                               limiting_annotation_regex = args.limiting_tier_pattern,
+                                               negate_limiting_annotation_regex = args.negate_pattern)
     logging.debug('Union sum: {:,} ms'.format(union_sum))
     logging.debug('Found {:,} section types'.format(len(section_sums)))
 
@@ -456,7 +489,9 @@ for eaf_file in args.eaf_files:
             events.extend(limiting_events)
             process_category(code, events, labels, output_records,
                              masking_tiers = args.mask,
-                             limiting_tier = args.limiting_tier)
+                             limiting_tier = args.limiting_tier,
+                             limiting_regex = args.limiting_tier_pattern,
+                             negate_regex = args.negate_pattern)
 
     # Get the list of labels for all output records
     labels = sorted(output_records.keys())
