@@ -389,6 +389,9 @@ for eaf_file in args.eaf_files:
     # Iterate through the tier combinations found above, and add the
     # total time that combination was the only one active
     for label in labels:
+        for top_tier in label.split('+'):
+            if top_tier not in output_records:
+                output_records[top_tier] = OutputRecord(file_id, top_tier)
         output_records[label] = OutputRecord(file_id, label)
         output_records[label].data['exclusive'] += section_sums[label]
         output_records['totals'].data['exclusive'] += section_sums[label]
